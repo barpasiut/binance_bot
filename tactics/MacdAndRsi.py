@@ -1,6 +1,7 @@
 import datetime
 import math
 import time
+import random
 from binance.client import Client
 from connection.Connection import Connection
 from indicators.Indicators import *
@@ -34,7 +35,7 @@ class MacdAndRsi:
     MARKET_MACDH_1M_SELL_DECISION_TREESHOLD = 5
     MACD_3M_BUY_DECISION_TREESHOLD = 0
     MACD_3M_SELL_DECISION_TREESHOLD = 0
-    RSI_1M_BUY_DECISION_TREESHOLD = 40
+    RSI_1M_BUY_DECISION_TREESHOLD = 50
     RSI_1M_SELL_DECISION_TREESHOLD = 70
     BOLLINGER_LINE_DECISION_TREESHOLD = 10
     
@@ -143,7 +144,7 @@ class MacdAndRsi:
         print("Symbol {}, RsiBuy {}, RsiSell: {}".format(symbol, rsi1mBuyDecisionTreeshold, rsi1mSellDecisionTreeshold))
             
         if self.__state == self.BUY_STATE:
-            self.__makeBuyDecision(symbol, indic1m, indic3m, rsi1mBuyDecisionTreeshold)
+            self.__makeBuyDecision(price, symbol, indic1m, indic3m, rsi1mBuyDecisionTreeshold)
         elif self.__state == self.SELL_STATE and self.__buySymCoin == symbol:
             #self.__makeSellDecision(indic1m, indic3m, rsi1mSellDecisionTreeshold)
             self.__makeSellDecision(price, indic1m)
@@ -166,12 +167,17 @@ class MacdAndRsi:
         self.conn.orders.makerSell(self.conn.client, self.__buySymCoin, amount, price)
         print("SOLD:\n Symbol: {}\n Price: {}\n Amount: {}\nSTATE: {}\n".format(self.__buySymCoin, price, amount, self.__state))
         
-    def __makeBuyDecision(self, symbol, indic1m, indic3m, rsiTreeshold):
+    def __makeBuyDecision(self, price, symbol, indic1m, indic3m, rsiTreeshold):
         if indic1m['macd'].iloc[-1] < self.MARKET_DOWN_MACD_1M_BUY_DECISION_TREESHOLD and indic1m['macdh'].iloc[-2] < self.MARKET_MACDH_1M_BUY_DECISION_TREESHOLD and indic1m['macdh'].iloc[-1] > self.MARKET_MACDH_1M_BUY_DECISION_TREESHOLD and indic1m['rsi_12'].iloc[-1] < self.RSI_1M_BUY_DECISION_TREESHOLD:
             for macdh in indic1m['macdh'][-7:-1]:
                 if macdh > 0:
                     return
-            self.__buyProcess(symbol)
+            ticker = self.conn.client.get_ticker(symbol=symbol)
+            prob = (1 - (price - float(ticker['lowPrice']))/ (float(ticker['highPrice']) - float(ticker['lowPrice']))) * (1 + abs(indic1m['macd'].iloc[-1]) / 100)
+            print("IN MAKE BUY DECISION FIRST IF: prob={}".format(prob))
+            if self.__buyIsSet(prob):
+                print("IN MAKE BUY DECISION SECOND IF: prob={}".format(prob))
+                self.__buyProcess(symbol)
 
         '''
         if indic1m['macd'].iloc[-1] < self.MARKET_DOWN_MACD_1M_BUY_DECISION_TREESHOLD and indic1m['macdh'].iloc[-1] < self.MARKET_MACDH_1M_BUY_DECISION_TREESHOLD and indic1m['macdh'].iloc[-1] > indic1m['macdh'].iloc[-2]:
@@ -235,3 +241,6 @@ class MacdAndRsi:
             if indic3m['macdh'].iloc[-1] > self.MACD_3M_SELL_DECISION_TREESHOLD:
                 self.__sellProcess()
         '''
+        
+    def __buyIsSet(self, probability):
+        return random.random() < probability
